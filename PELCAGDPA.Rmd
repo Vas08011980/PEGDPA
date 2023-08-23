@@ -1,0 +1,387 @@
+---
+title: "LCA_PE"
+author: "Vasileios Stavropoulos & Taylor Brown"
+date: "2023-08-23"
+output: html_document
+---
+#Import Library and Data
+```{r}
+message=FALSE
+echo=TRUE
+warnings=FALSE
+error=FALSE
+
+library(haven) ## Reading data - importing datasets
+library(tidyLPA) ## Run LPA
+library(ggplot2) ## Plotting
+library(tidyverse) ## Enables tidy principles
+library(mice) ## Missing data and imputations
+library(naniar) ## MCAR test
+library(stats)
+
+data <- read_sav("C:/Users/vasil/Desktop/Korean Conference 2023/Presentations/Abstract 3 TB/FileCollectionTaylor/ARCUN1SF.sav") 
+```
+
+
+## Missing data analysis
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+c_data <- data %>%
+  select(PEQ_Q1_W1,PEQ_Q2_W1,PEQ_Q3_W1,PEQ_Q4_W1,PEQ_Q5_W1,PEQ_Q6_W1)
+      
+
+## This calculates % of missing data
+Ctotalcells <- prod(dim(c_data))
+Cmissingcells <- sum(is.na(c_data))
+(Cmissingcells * 100)/(Ctotalcells)
+
+## Testing if missing values are completely at random - MCAR
+mcar_test(c_data)
+
+## Highest missing values per variable
+c_data %>%
+  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+  pivot_longer(cols = everything(), names_to = "names", values_to = "values") %>%
+  arrange(desc(values)) %>%
+  mutate(perc=(values)/565) %>% # note that 565 is the number of participants and you should replace it with your N 
+  slice_head(n=10)
+```
+
+
+## Estimating LPA models (1 to 6) with different number of classes (1:5) 
+Here we look for the lowest AIC, BIC, etc. and we follow suggestions outlined in output
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+set.seed(123)
+Models <- c_data%>%
+  select("PEQ_Q1_W1","PEQ_Q2_W1","PEQ_Q3_W1","PEQ_Q4_W1","PEQ_Q5_W1","PEQ_Q6_W1")%>%
+  single_imputation()%>%
+  estimate_profiles(1:5, variances = c("equal", "varying", "equal", "varying"),
+                    covariances = c("zero", "zero", "equal", "varying"))%>%
+  compare_solutions(statistics = c("AIC","BIC","AWE", "CLC", "KIC"))
+
+Models
+```
+
+
+## Estimating best models 
+
+Model 1 is Equal variances and covariances fixed to 0 (CIP) 
+Model 2 is Varying variances and covariances fixed to 0 (CVDP) 
+Model 3 is Equal variances and equal covariances (CIUP) 
+Model 4 and 5 are not able to fit Mclust 
+Model 6 is Varying variances and Varying covariances (CVUP) 
+
+
+```{r, echo=FALSE}
+## Here we run models of interest to create a plot with BIC/AIC and entropy
+set.seed(124)
+CIUP_5 <- c_data%>%
+  select("PEQ_Q1_W1","PEQ_Q2_W1","PEQ_Q3_W1","PEQ_Q4_W1","PEQ_Q5_W1","PEQ_Q6_W1")%>%
+  single_imputation()%>%
+  estimate_profiles(5, variances="equal",covariances="equal")
+
+set.seed(125)
+CIUP_4 <- c_data%>%
+  select("PEQ_Q1_W1","PEQ_Q2_W1","PEQ_Q3_W1","PEQ_Q4_W1","PEQ_Q5_W1","PEQ_Q6_W1")%>%
+  single_imputation()%>%
+  estimate_profiles(4, variances="equal",covariances="equal")
+
+set.seed(126)
+CIUP_3 <- c_data%>%
+  select("PEQ_Q1_W1","PEQ_Q2_W1","PEQ_Q3_W1","PEQ_Q4_W1","PEQ_Q5_W1","PEQ_Q6_W1")%>%
+  single_imputation()%>%
+  estimate_profiles(3, variances="equal",covariances="equal")
+
+set.seed(127)
+CIUP_2 <- c_data%>%
+  select("PEQ_Q1_W1","PEQ_Q2_W1","PEQ_Q3_W1","PEQ_Q4_W1","PEQ_Q5_W1","PEQ_Q6_W1")%>%
+  single_imputation()%>%
+  estimate_profiles(2, variances="equal",covariances="equal")
+
+set.seed(128)
+CIP_2 <- c_data%>%
+  select("PEQ_Q1_W1","PEQ_Q2_W1","PEQ_Q3_W1","PEQ_Q4_W1","PEQ_Q5_W1","PEQ_Q6_W1")%>%
+  single_imputation()%>%
+  estimate_profiles(2, variances="equal",covariances="zero")
+
+set.seed(129)
+CIP_3 <- c_data%>%
+  select("PEQ_Q1_W1","PEQ_Q2_W1","PEQ_Q3_W1","PEQ_Q4_W1","PEQ_Q5_W1","PEQ_Q6_W1")%>%
+  single_imputation()%>%
+  estimate_profiles(3, variances="equal",covariances="zero")
+
+set.seed(130)
+CIP_4 <- c_data%>%
+  select("PEQ_Q1_W1","PEQ_Q2_W1","PEQ_Q3_W1","PEQ_Q4_W1","PEQ_Q5_W1","PEQ_Q6_W1")%>%
+  single_imputation()%>%
+  estimate_profiles(4, variances="equal",covariances="zero")
+
+set.seed(131)
+CIP_5 <- c_data%>%
+  select("PEQ_Q1_W1","PEQ_Q2_W1","PEQ_Q3_W1","PEQ_Q4_W1","PEQ_Q5_W1","PEQ_Q6_W1")%>%
+  single_imputation()%>%
+  estimate_profiles(5, variances="equal",covariances="zero")
+
+fit <- as_tibble(rbind(CIUP_2[["model_3_class_2"]][["fit"]],CIUP_3[["model_3_class_3"]][["fit"]],
+      CIUP_4[["model_3_class_4"]][["fit"]],CIUP_5[["model_3_class_5"]][["fit"]],
+      CIP_2[["model_1_class_2"]][["fit"]],CIP_3[["model_1_class_3"]][["fit"]],
+      CIP_4[["model_1_class_4"]][["fit"]],CIP_5[["model_1_class_5"]][["fit"]])) %>%
+  select(Model,Classes,LogLik,AIC,BIC,AWE,Entropy,n_min,BLRT_p)
+
+fit
+```
+
+
+```{r, echo=FALSE}
+## select parameters to plot
+aic22 <- as.numeric(fit %>% select(AIC)%>% slice(1))
+aic23 <- as.numeric(fit %>% select(AIC)%>% slice(2))
+aic24 <- as.numeric(fit %>% select(AIC)%>% slice(3))
+aic25 <- as.numeric(fit %>% select(AIC)%>% slice(4))
+aic62 <- as.numeric(fit %>% select(AIC)%>% slice(5))
+aic63 <- as.numeric(fit %>% select(AIC)%>% slice(6))
+aic64 <- as.numeric(fit %>% select(AIC)%>% slice(7))
+aic65 <- as.numeric(fit %>% select(AIC)%>% slice(8))
+bic22 <- as.numeric(fit %>% select(BIC)%>% slice(1))
+bic23 <- as.numeric(fit %>% select(BIC)%>% slice(2))
+bic24 <- as.numeric(fit %>% select(BIC)%>% slice(3))
+bic25 <- as.numeric(fit %>% select(BIC)%>% slice(4))
+bic62 <- as.numeric(fit %>% select(BIC)%>% slice(5))
+bic63 <- as.numeric(fit %>% select(BIC)%>% slice(6))
+bic64 <- as.numeric(fit %>% select(BIC)%>% slice(7))
+bic65 <- as.numeric(fit %>% select(BIC)%>% slice(8))
+awe22 <- as.numeric(fit %>% select(AWE)%>% slice(1))
+awe23 <- as.numeric(fit %>% select(AWE)%>% slice(2))
+awe24 <- as.numeric(fit %>% select(AWE)%>% slice(3))
+awe25 <- as.numeric(fit %>% select(AWE)%>% slice(4))
+awe62 <- as.numeric(fit %>% select(AWE)%>% slice(5))
+awe63 <- as.numeric(fit %>% select(AWE)%>% slice(6))
+awe64 <- as.numeric(fit %>% select(AWE)%>% slice(7))
+awe65 <- as.numeric(fit %>% select(AWE)%>% slice(8))
+e22 <- as.numeric(fit %>% select(Entropy)%>% slice(1))
+e23 <- as.numeric(fit %>% select(Entropy)%>% slice(2))
+e24 <- as.numeric(fit %>% select(Entropy)%>% slice(3))
+e25 <- as.numeric(fit %>% select(Entropy)%>% slice(4))
+e62 <- as.numeric(fit %>% select(Entropy)%>% slice(5))
+e63 <- as.numeric(fit %>% select(Entropy)%>% slice(6))
+e64 <- as.numeric(fit %>% select(Entropy)%>% slice(7))
+e65 <- as.numeric(fit %>% select(Entropy)%>% slice(8))
+
+## Plot best model
+`Number of Profiles` <- as.factor(c(2,3,4,5,6,7,8,9))
+Profiles <- recode(`Number of Profiles`,"2"="CIUP 2","3"="CIUP 3","4"="CIUP 4","5"="CIUP 5",
+                              "6"="CIP 2","7"="CIP 3","8"="CIP 4","9"="CIP 5")
+AIC <- c(aic22,aic23,aic24,aic25,aic62,aic63,aic64,aic65)
+BIC <- c(bic22,bic23,bic24,bic25,bic62,bic63,bic64,bic65)
+AWE <- c(awe22,awe23,awe24,awe25,awe62,awe63,awe64,awe65)
+Entropy <- c(e22,e23,e24,e25,e62,e63,e64,e65)
+Model_metrics <- data.frame(Profiles,AIC,BIC,AWE,Entropy)
+
+scl = 35000
+figure_2 <- Model_metrics %>%
+  ggplot(aes(x = Profiles)) + 
+  geom_line(aes(y = AIC, colour = "AIC"), size = 1.0, group=1) +
+  geom_line(aes(y = BIC, colour = "BIC"), size = 1.0, group=1) +
+  geom_line(aes(y = AWE, colour = "AWE"), size = 1.0, group=1) +
+  geom_line(aes(y = Entropy*scl, colour = "Entropy"), size = 1.0,group=1) +
+  scale_y_continuous(sec.axis = sec_axis(~. /scl , name = "Entropy")) +
+  labs(colour = "Index", y = "AIC / BIC") + 
+  theme(legend.position="bottom") + 
+  scale_colour_manual(values = c(
+    AIC = "royalblue4", BIC = "#E69F00", AWE ="#56B4E9", Entropy ="maroon"))
+
+Model_metrics%>% 
+  group_by(Profiles)%>%
+  mutate(Total = (sum(AIC,BIC,AWE))/3)%>%
+  arrange(Total)
+
+ggsave("Figure_2.tiff", figure_2, width = 10, height = 6, dpi = 300)
+```
+
+
+
+## CIUP with 3 classes
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+
+write_sav(get_data(CIUP_3), "LPA_with_participant_class.sav")
+
+LPA<-read_sav("LPA_with_participant_class.sav")
+
+LPA_data<-LPA%>%
+  mutate(ZProteus_1 = scale(PEQ_Q1_W1)) %>%
+   mutate(ZProteus_2 = scale(PEQ_Q2_W1)) %>%
+   mutate(ZProteus_3 = scale(PEQ_Q3_W1)) %>%
+   mutate(ZProteus_4 = scale(PEQ_Q4_W1)) %>%
+   mutate(ZProteus_5 = scale(PEQ_Q5_W1)) %>%
+   mutate(ZProteus_6 = scale(PEQ_Q6_W1))
+
+data1 <- data %>%
+  add_column(LPA$Class)%>%
+  rename(PE_Class= "LPA$Class")%>%
+  mutate(ZProteus_1 = scale(PEQ_Q1_W1)) %>%
+   mutate(ZProteus_2 = scale(PEQ_Q2_W1)) %>%
+   mutate(ZProteus_3 = scale(PEQ_Q3_W1)) %>%
+   mutate(ZProteus_4 = scale(PEQ_Q4_W1)) %>%
+   mutate(ZProteus_5 = scale(PEQ_Q5_W1)) %>%
+   mutate(ZProteus_6 = scale(PEQ_Q6_W1)) 
+
+data1$PE_Class <- as.factor(data1$PE_Class)
+
+data1%>%
+  group_by(PE_Class)%>%
+  count(PE_Class)%>%
+  mutate(Perc = (n/565)*100)
+
+write_sav(data1, "dataC.sav")
+```
+
+#CIUP WITH 3 CLASSES
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+
+
+
+
+LPA_data <- LPA_data%>%
+  select(Class, ZProteus_1, ZProteus_2, ZProteus_3, ZProteus_4, ZProteus_5, ZProteus_6)%>%
+  group_by(Class)%>%
+  summarise(ZProteus_1=mean(ZProteus_1),ZProteus_2=mean(ZProteus_2),
+            ZProteus_3=mean(ZProteus_3),
+            ZProteus_4=mean(ZProteus_4),ZProteus_5=mean(ZProteus_5),ZProteus_6=mean(ZProteus_6))%>%
+  na.omit()
+LPA_data
+
+LPA_data1 <- LPA_data%>%
+  pivot_longer(cols=c(ZProteus_1,ZProteus_2,ZProteus_3,ZProteus_4,ZProteus_5,ZProteus_6),
+               names_to = "Model_Indicators", values_to = "Z_Scores")
+
+LPA_data1$Class <- as.factor(LPA_data1$Class)
+levels(LPA_data1$Class) <- c("class_1","class_2","class_3")
+
+Figure_3 <- LPA_data1%>%
+  ggplot(aes(x = Model_Indicators, y = Z_Scores, group = Class, color=Class)) + 
+  geom_point(size = 1.8) + geom_line(size = 1.0) +
+  labs(x= "", y = "Z scores", color = "Profiles") + 
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1.0),
+        axis.title.y = element_text(face = "bold"),
+        legend.title = element_text(face = "bold"), 
+        legend.position="bottom") +
+  scale_y_continuous(breaks=seq(-1.0, 2.0, by = 0.5)) +
+  scale_x_discrete(labels=c("ZProteus_1"="Proteus_1","ZProteus_2"="Proteus_2",
+                            "ZProteus_3"="Proteus_3", 
+                            "ZProteus_4"="Proteus_4",
+                            "ZProteus_5"="Proteus_5",
+                            "ZProteus_6"="Proteus_6")) +
+  scale_colour_manual(values = c(
+    Class_1 = "royalblue4", `Class_2` = "#E69F00", `Class_3` ="#56B4E9"))
+
+
+Figure_3
+ggsave("Figure_3.tiff", Figure_3, width = 10, height = 6, dpi = 300)
+```
+
+```{r}
+Comparisons <- read_sav("C:/Users/vasil/Desktop/Korean Conference 2023/Presentations/Abstract 3 TB/FileCollectionTaylor/Comparisons.sav")
+```
+
+
+
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+one.way <- aov(IGDTotalW1 ~ PE_Class, data = Comparisons)
+
+summary(one.way)
+
+posthoc_bonferroni <- pairwise.t.test(Comparisons$IGDTotalW1, Comparisons$PE_Class, p.adjust.method = "bonferroni")
+print(posthoc_bonferroni)
+
+```
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+one.way <- aov(IGDTotalW2 ~ PE_Class, data = Comparisons)
+
+summary(one.way)
+
+posthoc_bonferroni <- pairwise.t.test(Comparisons$IGDTotalW2, Comparisons$PE_Class, p.adjust.method = "bonferroni")
+print(posthoc_bonferroni)
+
+```
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+one.way <- aov(AverageDailyWeeklySteps~ PE_Class, data = Comparisons)
+
+summary(one.way)
+
+posthoc_bonferroni <- pairwise.t.test(Comparisons$AverageDailyWeeklySteps, Comparisons$PE_Class, p.adjust.method = "bonferroni")
+print(posthoc_bonferroni)
+
+```
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+one.way <- aov(AverageDailyStepsWave2~ PE_Class, data = Comparisons)
+
+summary(one.way)
+
+posthoc_bonferroni <- pairwise.t.test(Comparisons$AverageDailyStepsWave2, Comparisons$PE_Class, p.adjust.method = "bonferroni")
+print(posthoc_bonferroni)
+
+```
+
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+one.way <- aov(AverageDailyStepsWave2~ PE_Class, data = Comparisons)
+
+summary(one.way)
+
+posthoc_bonferroni <- pairwise.t.test(Comparisons$AverageDailyStepsWave2, Comparisons$PE_Class, p.adjust.method = "bonferroni")
+print(posthoc_bonferroni)
+
+```
+
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+echo=TRUE
+warnings=FALSE
+error=FALSE
+model1 <- lm( AverageDailyWeeklySteps~ IGDTotalW1, data = Comparisons)
+summary(model1)
+```
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+echo=TRUE
+warnings=FALSE
+error=FALSE
+model2 <- lm( AverageDailyWeeklySteps~ PETotalW1, data = Comparisons)
+summary(model2)
+```
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+echo=TRUE
+warnings=FALSE
+error=FALSE
+model3 <- lm( AverageDailyWeeklySteps~ PETotalW1+IGDTotalW1, data = Comparisons)
+summary(model3)
+```
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+echo=TRUE
+warnings=FALSE
+error=FALSE
+model4 <- lm(AverageDailyCaloriesWave2~ IGDTotalW1, data = Comparisons)
+summary(model4)
+```
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+echo=TRUE
+warnings=FALSE
+error=FALSE
+model5 <- lm(AverageDailyCaloriesWave2~ PETotalW1, data = Comparisons)
+summary(model5)
+```
+```{r}
+options(scipen = 999, digits=3, max.print=999999, show.signif.stars=TRUE)
+echo=TRUE
+warnings=FALSE
+error=FALSE
+model6 <- lm(AverageDailyCaloriesWave2~ PETotalW1+IGDTotalW1, data = Comparisons)
+summary(model6)
+```
